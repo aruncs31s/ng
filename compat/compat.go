@@ -4,7 +4,7 @@
 //
 // Usage (old API → new):
 //
-//	import "github.com/aruncs31s/number_generator/compat"
+//	import "github.com/aruncs31s/ng/compat"
 //
 //	gen := compat.NewGenerator(myRepo, counterRepo)
 //	result, err := gen.Generate(ctx, tx, compat.GenerateParams{...})
@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aruncs31s/number_generator"
+	numbergenerator "github.com/aruncs31s/ng"
 	"gorm.io/gorm"
 )
 

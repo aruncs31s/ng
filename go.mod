@@ -1,4 +1,4 @@
-module github.com/aruncs31s/number_generator
+module github.com/aruncs31s/ng
 
 go 1.25.2
 

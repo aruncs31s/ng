@@ -7,7 +7,7 @@ The caller is responsible for resolving static prefix parts from their own domai
 ## Install
 
 ```
-go get github.com/aruncs31s/number_generator
+go get github.com/aruncs31s/ng
 ```
 
 ## Dependencies
