@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aruncs31s/ng"
 	numbergenerator "github.com/aruncs31s/ng"
 	"gorm.io/gorm"
 )
@@ -55,30 +56,15 @@ type RegCourseTypeInfo struct {
 // Config types (mirrors the old AdmissionNumberConfig)
 // ---------------------------------------------------------------------------
 
-type PartConfig struct {
-	Enabled   bool
-	Position  int
-	Separator string
-	Width     int
-	Length    int
-}
-
-func (p *PartConfig) IsEnabled() bool { return p != nil && p.Enabled }
-
-type PartConfigWithValue struct {
-	PartConfig
-	Value string
-}
-
 type AdmissionNumberConfig struct {
-	CustomReferenceNumber *PartConfigWithValue
-	Prefixes              []PartConfigWithValue
-	University            *PartConfig
-	Batch                 *PartConfig
-	Year                  *PartConfig
-	Department            *PartConfig
-	RegType               *PartConfig
-	IncrementalPart       *PartConfig
+	CustomReferenceNumber *ng.PartConfigWithValue
+	Prefixes              []ng.PartConfigWithValue
+	University            *ng.PartConfig
+	Batch                 *ng.PartConfig
+	Year                  *ng.PartConfig
+	Department            *ng.PartConfig
+	RegType               *ng.PartConfig
+	IncrementalPart       *ng.PartConfig
 	UseCurrentYear        bool
 }
 
@@ -90,7 +76,7 @@ func (c *AdmissionNumberConfig) Validate() error {
 	positions := make(map[int]string)
 	maxPos := 0
 
-	register := func(name string, cfg *PartConfig) error {
+	register := func(name string, cfg *ng.PartConfig) error {
 		if !cfg.IsEnabled() {
 			return nil
 		}
@@ -107,7 +93,7 @@ func (c *AdmissionNumberConfig) Validate() error {
 		return nil
 	}
 
-	configs := map[string]*PartConfig{
+	configs := map[string]*ng.PartConfig{
 		"university":       c.University,
 		"batch":            c.Batch,
 		"year":             c.Year,
@@ -324,7 +310,7 @@ func (g *Generator) resolvePrefixParts(
 	return parts, wildcardPos, nil
 }
 
-func (g *Generator) resolveBatchYear(ctx context.Context, tx *gorm.DB, batch BatchInfo, cfg *PartConfig, useCurrent bool) (string, error) {
+func (g *Generator) resolveBatchYear(ctx context.Context, tx *gorm.DB, batch BatchInfo, cfg *ng.PartConfig, useCurrent bool) (string, error) {
 	if useCurrent {
 		return trimToLength(strconv.Itoa(time.Now().Year()), cfg.Length), nil
 	}
@@ -341,7 +327,7 @@ func (g *Generator) resolveBatchYear(ctx context.Context, tx *gorm.DB, batch Bat
 	return "", errors.New("cannot resolve batch year: StartYear is empty and YearID is nil")
 }
 
-func (g *Generator) resolveAcademicYear(ctx context.Context, tx *gorm.DB, batch BatchInfo, cfg *PartConfig, useCurrent bool) (string, error) {
+func (g *Generator) resolveAcademicYear(ctx context.Context, tx *gorm.DB, batch BatchInfo, cfg *ng.PartConfig, useCurrent bool) (string, error) {
 	if useCurrent {
 		return trimToLength(strconv.Itoa(time.Now().Year()), cfg.Length), nil
 	}
