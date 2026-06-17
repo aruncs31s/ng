@@ -1,4 +1,4 @@
-package numbergenerator
+package ng
 
 import "errors"
 

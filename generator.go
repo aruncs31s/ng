@@ -5,7 +5,7 @@
 // The caller is responsible for resolving static prefix parts from their own
 // domain model. Only the counter logic (find max, increment, insert) lives in
 // this package.
-package numbergenerator
+package ng
 
 import (
 	"context"
