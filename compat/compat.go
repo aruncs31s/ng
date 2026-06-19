@@ -24,103 +24,6 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// Domain model types (mirrors the old model package)
-// ---------------------------------------------------------------------------
-
-type BatchInfo struct {
-	BatchIdentifier           int
-	BelongingCourseIdentifier int
-	AcademicYearIdentifer     int
-	StartYear                 string
-}
-
-type CourseInfo struct {
-	Abbreviation         string
-	DepartmentIdentifier int
-}
-
-type DepartmentInfo struct {
-	Abbreviation string
-}
-
-type AcademicYearInfo struct {
-	Name string
-}
-
-type RegCourseTypeInfo struct {
-	Name string
-	Code string
-}
-
-// ---------------------------------------------------------------------------
-// Config types (mirrors the old AdmissionNumberConfig)
-// ---------------------------------------------------------------------------
-
-type AdmissionNumberConfig struct {
-	CustomReferenceNumber *ng.PartConfigWithValue
-	Prefixes              []ng.PartConfigWithValue
-	University            *ng.PartConfig
-	Batch                 *ng.PartConfig
-	Year                  *ng.PartConfig
-	Department            *ng.PartConfig
-	RegType               *ng.PartConfig
-	IncrementalPart       *ng.PartConfig
-	UseCurrentYear        bool
-}
-
-func (c *AdmissionNumberConfig) Validate() error {
-	if !c.IncrementalPart.IsEnabled() {
-		return errors.New("incremental_part is required and must be enabled")
-	}
-
-	positions := make(map[int]string)
-	maxPos := 0
-
-	register := func(name string, cfg *ng.PartConfig) error {
-		if !cfg.IsEnabled() {
-			return nil
-		}
-		if cfg.Position <= 0 {
-			return fmt.Errorf("%s: position must be > 0", name)
-		}
-		if existing, dup := positions[cfg.Position]; dup {
-			return fmt.Errorf("position %d is used by both %s and %s", cfg.Position, existing, name)
-		}
-		positions[cfg.Position] = name
-		if cfg.Position > maxPos {
-			maxPos = cfg.Position
-		}
-		return nil
-	}
-
-	configs := map[string]*ng.PartConfig{
-		"university":       c.University,
-		"batch":            c.Batch,
-		"year":             c.Year,
-		"department":       c.Department,
-		"reg_type":         c.RegType,
-		"incremental_part": c.IncrementalPart,
-	}
-	if c.CustomReferenceNumber != nil {
-		configs["custom-reference-number"] = &c.CustomReferenceNumber.PartConfig
-	}
-	for i := range c.Prefixes {
-		name := fmt.Sprintf("prefixes[%d]", i)
-		configs[name] = &c.Prefixes[i].PartConfig
-	}
-
-	for name, cfg := range configs {
-		if err := register(name, cfg); err != nil {
-			return err
-		}
-	}
-	if c.IncrementalPart.Position != maxPos {
-		return errors.New("incremental_part must occupy the last (highest) position")
-	}
-	return nil
-}
-
-// ---------------------------------------------------------------------------
 // GenerateParams / GenerateResult
 // ---------------------------------------------------------------------------
 
@@ -130,7 +33,7 @@ type GenerateParams struct {
 	DepartmentNo       *int
 	UniversityCode     *string
 	RegTypeID          *int
-	Config             AdmissionNumberConfig
+	Config             ng.AdmissionNumberConfig
 }
 
 type GenerateResult struct {
@@ -142,11 +45,29 @@ type GenerateResult struct {
 // ---------------------------------------------------------------------------
 
 type Repository interface {
-	GetBatch(ctx context.Context, tx *gorm.DB, batchID int) (BatchInfo, error)
-	GetCourse(ctx context.Context, tx *gorm.DB, courseID int) (CourseInfo, error)
-	GetDepartment(ctx context.Context, tx *gorm.DB, departmentID int) (DepartmentInfo, error)
-	GetAcademicYear(ctx context.Context, tx *gorm.DB, yearID int) (AcademicYearInfo, error)
-	GetRegCourseType(ctx context.Context, tx *gorm.DB, regTypeID int) (RegCourseTypeInfo, error)
+	// Batch is owned by a year and a course, and has the year info needed for prefix resolution.
+	GetBatch(
+		ctx context.Context,
+		tx *gorm.DB,
+		batchID int,
+	) (ng.BatchInfo, error)
+	GetCourse(
+		ctx context.Context,
+		tx *gorm.DB,
+		courseID int,
+	) (ng.CourseInfo, error)
+	GetDepartment(
+		ctx context.Context, tx *gorm.DB, departmentID int,
+	) (ng.DepartmentInfo, error)
+	GetAcademicYear(
+		ctx context.Context,
+		tx *gorm.DB, yearID int,
+	) (ng.AcademicYearInfo, error)
+	GetRegCourseType(
+		ctx context.Context,
+		tx *gorm.DB,
+		regTypeID int,
+	) (ng.RegCourseTypeInfo, error)
 }
 
 // ---------------------------------------------------------------------------
@@ -215,7 +136,7 @@ func (g *Generator) resolvePrefixParts(
 	c := p.Config
 	parts := make([]numbergenerator.Part, 0, 5)
 
-	var batch BatchInfo
+	var batch ng.BatchInfo
 	needsBatch := c.Batch.IsEnabled() || c.Year.IsEnabled() || c.Department.IsEnabled()
 	if needsBatch {
 		if p.BatchID == nil {
@@ -310,9 +231,12 @@ func (g *Generator) resolvePrefixParts(
 	return parts, wildcardPos, nil
 }
 
-func (g *Generator) resolveBatchYear(ctx context.Context, tx *gorm.DB, batch BatchInfo, cfg *ng.PartConfig, useCurrent bool) (string, error) {
+func (g *Generator) resolveBatchYear(ctx context.Context, tx *gorm.DB, batch ng.BatchInfo, cfg *ng.PartConfig, useCurrent bool) (string, error) {
 	if useCurrent {
-		return trimToLength(strconv.Itoa(time.Now().Year()), cfg.Length), nil
+		return trimToLength(
+			strconv.Itoa(
+				time.Now().Year(),
+			), cfg.Length), nil
 	}
 	if strings.TrimSpace(batch.StartYear) != "" {
 		return trimToLength(batch.StartYear, cfg.Length), nil
@@ -327,7 +251,7 @@ func (g *Generator) resolveBatchYear(ctx context.Context, tx *gorm.DB, batch Bat
 	return "", errors.New("cannot resolve batch year: StartYear is empty and YearID is nil")
 }
 
-func (g *Generator) resolveAcademicYear(ctx context.Context, tx *gorm.DB, batch BatchInfo, cfg *ng.PartConfig, useCurrent bool) (string, error) {
+func (g *Generator) resolveAcademicYear(ctx context.Context, tx *gorm.DB, batch ng.BatchInfo, cfg *ng.PartConfig, useCurrent bool) (string, error) {
 	if useCurrent {
 		return trimToLength(strconv.Itoa(time.Now().Year()), cfg.Length), nil
 	}
@@ -344,7 +268,7 @@ func (g *Generator) resolveAcademicYear(ctx context.Context, tx *gorm.DB, batch 
 	return "", errors.New("cannot resolve academic year: YearID is nil and StartYear is empty")
 }
 
-func (g *Generator) resolveDepartment(ctx context.Context, tx *gorm.DB, batch BatchInfo, departmentNo *int) (string, error) {
+func (g *Generator) resolveDepartment(ctx context.Context, tx *gorm.DB, batch ng.BatchInfo, departmentNo *int) (string, error) {
 	if batch.BelongingCourseIdentifier != 0 {
 		course, err := g.repo.GetCourse(ctx, tx, batch.BelongingCourseIdentifier)
 		if err != nil {

@@ -39,7 +39,11 @@ func (g *Generator) Generate(ctx context.Context, tx *gorm.DB, p GenerateParams)
 
 	parts := make([]numberPart, len(p.Parts))
 	for i, pt := range p.Parts {
-		parts[i] = numberPart{position: pt.Position, separator: pt.Separator, value: pt.Value}
+		parts[i] = numberPart{
+			position:  pt.Position,
+			separator: pt.Separator,
+			value:     pt.Value,
+		}
 	}
 	prefix := buildNumber(parts, true)
 
