@@ -1,6 +1,6 @@
 module github.com/aruncs31s/ng
 
-go 1.25.2
+go 1.25.0
 
 require gorm.io/gorm v1.31.1
 
