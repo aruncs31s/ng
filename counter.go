@@ -54,19 +54,31 @@ func (r *gormCounterRepo) LockAndGetLastByPrefix(ctx context.Context, tx *gorm.D
 	if prefix == "" {
 		return "", errors.New("prefix must not be empty")
 	}
-	var last string
+	var candidates []string
 	err := tx.WithContext(ctx).
 		Table(r.c.TableName).
 		Select(r.c.ColumnName).
 		Where(r.c.ColumnName+" LIKE ?", prefix+"%").
 		Order("LENGTH(" + r.c.ColumnName + ") DESC, " + r.c.ColumnName + " DESC").
-		Limit(1).
+		Limit(100).
 		Clauses(clause.Locking{Strength: "UPDATE"}).
-		Scan(&last).Error
+		Find(&candidates).Error
 	if err != nil {
 		return "", err
 	}
-	return strings.ToUpper(strings.TrimSpace(last)), nil
+	var last string
+	for _, cand := range candidates {
+		cand = strings.ToUpper(strings.TrimSpace(cand))
+		suffix := cand
+		if strings.HasPrefix(cand, prefix) {
+			suffix = cand[len(prefix):]
+		}
+		if isDigits(suffix) {
+			last = cand
+			break
+		}
+	}
+	return last, nil
 }
 
 func (r *gormCounterRepo) LockAndGetLastByPattern(ctx context.Context, tx *gorm.DB, pattern string) (string, error) {
@@ -108,4 +120,17 @@ func (r *gormCounterRepo) NumberExists(ctx context.Context, tx *gorm.DB, number 
 		Where(r.c.ColumnName+" = ?", number).
 		Count(&count).Error
 	return count > 0, err
+}
+
+func isDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }
