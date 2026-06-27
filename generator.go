@@ -12,15 +12,23 @@ import (
 	"fmt"
 	"strconv"
 
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 type Generator struct {
 	counterRepo CounterRepository
+	logger      *zap.Logger
 }
 
-func NewGenerator(counterRepo CounterRepository) *Generator {
-	return &Generator{counterRepo: counterRepo}
+func NewGenerator(counterRepo CounterRepository, logger ...zap.Logger) *Generator {
+	var l *zap.Logger
+	if len(logger) > 0 {
+		l = &logger[0]
+	} else {
+		l = GetLogger()
+	}
+	return &Generator{counterRepo: counterRepo, logger: l}
 }
 
 func (g *Generator) Generate(ctx context.Context, tx *gorm.DB, p GenerateParams) (GenerateResult, error) {
@@ -34,6 +42,7 @@ func (g *Generator) Generate(ctx context.Context, tx *gorm.DB, p GenerateParams)
 		return GenerateResult{}, err
 	}
 	if err := p.Validate(); err != nil {
+		g.logger.Error("validation error ", zap.Error(err))
 		return GenerateResult{}, fmt.Errorf("invalid params: %w", err)
 	}
 
@@ -87,7 +96,10 @@ func (g *Generator) generateNext(
 ) (string, error) {
 	last, err := g.counterRepo.LockAndGetLastByPrefix(ctx, tx, prefix)
 	if err != nil {
-		return "", fmt.Errorf("locking last number: %w", err)
+		return "",
+			fmt.Errorf(
+				fmt.Errorf("locking last number: %w", err).Error()+" %w", ErrLockingLastNumber,
+			)
 	}
 
 	width := defaultWidth

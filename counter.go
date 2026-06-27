@@ -57,6 +57,13 @@ func NewGORMRepository(c *GORMConfig, loggers ...*zap.Logger) CounterRepository 
 	return &cr
 }
 
+func (r *gormCounterRepo) getLogger() *zap.Logger {
+	if r.logger == nil {
+		return GetLogger()
+	}
+	return r.logger
+}
+
 func (r *gormCounterRepo) LockAndGetLastByPrefix(ctx context.Context, tx *gorm.DB, prefix string) (string, error) {
 	prefix = strings.ToUpper(strings.TrimSpace(prefix))
 	if prefix == "" {
