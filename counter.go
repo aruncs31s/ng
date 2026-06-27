@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -41,12 +42,19 @@ type GORMConfig struct {
 }
 
 type gormCounterRepo struct {
-	c *GORMConfig
+	logger *zap.Logger
+	c      *GORMConfig
 }
 
 // NewGORMRepository returns a GORM-backed CounterRepository.
-func NewGORMRepository(c *GORMConfig) CounterRepository {
-	return &gormCounterRepo{c: c}
+func NewGORMRepository(c *GORMConfig, loggers ...*zap.Logger) CounterRepository {
+	cr := gormCounterRepo{c: c}
+	if len(loggers) > 0 {
+		cr.logger = loggers[0]
+	} else {
+		cr.logger = GetLogger()
+	}
+	return &cr
 }
 
 func (r *gormCounterRepo) LockAndGetLastByPrefix(ctx context.Context, tx *gorm.DB, prefix string) (string, error) {
@@ -54,6 +62,8 @@ func (r *gormCounterRepo) LockAndGetLastByPrefix(ctx context.Context, tx *gorm.D
 	if prefix == "" {
 		return "", errors.New("prefix must not be empty")
 	}
+	r.logger.Info("prefix", zap.String("generated_prefix", prefix))
+
 	var candidates []string
 	err := tx.WithContext(ctx).
 		Table(r.c.TableName).
@@ -78,6 +88,7 @@ func (r *gormCounterRepo) LockAndGetLastByPrefix(ctx context.Context, tx *gorm.D
 			break
 		}
 	}
+	r.logger.Info("last admission number", zap.String("last admission number", last))
 	return last, nil
 }
 

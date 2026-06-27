@@ -102,15 +102,27 @@ func (g *Generator) generateNext(
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
-		yes, err := g.counterRepo.CheckIfCancelled(ctx, tx, prefix, result)
+		isCancelled, err := g.counterRepo.CheckIfCancelled(ctx, tx, prefix, result)
 		if err != nil {
 			return "", ErrCheckingCancelled
 		}
-		if !yes {
-			break
+		if isCancelled {
+			nextNum++
+			result = getNumber(nextNum, width, prefixParts, cfg)
+			continue
 		}
-		nextNum++
-		result = getNumber(nextNum, width, prefixParts, cfg)
+
+		exists, err := g.counterRepo.NumberExists(ctx, tx, result)
+		if err != nil {
+			return "", err
+		}
+		if exists {
+			nextNum++
+			result = getNumber(nextNum, width, prefixParts, cfg)
+			continue
+		}
+
+		break
 	}
 	return result, nil
 }
@@ -133,14 +145,32 @@ func (g *Generator) generateNextGlobal(
 	}
 
 	nextNum := getNext(last, "")
-	numStr := strconv.Itoa(nextNum)
-	if len(numStr) > width {
-		width = len(numStr)
+	var result string
+	for {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		numStr := strconv.Itoa(nextNum)
+		if len(numStr) > width {
+			width = len(numStr)
+		}
+		allParts := copyParts(fullParts, numberPart{
+			position:  cfg.Position,
+			separator: cfg.Separator,
+			value:     fmt.Sprintf("%0*d", width, nextNum),
+		})
+		result = buildNumber(allParts, false)
+
+		exists, err := g.counterRepo.NumberExists(ctx, tx, result)
+		if err != nil {
+			return "", err
+		}
+		if exists {
+			nextNum++
+			continue
+		}
+
+		break
 	}
-	allParts := copyParts(fullParts, numberPart{
-		position:  cfg.Position,
-		separator: cfg.Separator,
-		value:     fmt.Sprintf("%0*d", width, nextNum),
-	})
-	return buildNumber(allParts, false), nil
+	return result, nil
 }
